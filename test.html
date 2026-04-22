@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>API Test</title>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+    }
+    input, button {
+      margin: 5px;
+      padding: 8px;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🎮 API Tester</h1>
+
+<!-- ADD GAME -->
+<h2>Add Game</h2>
+<input id="title" placeholder="Title">
+<input id="category" placeholder="Category">
+<button onclick="addGame()">Add</button>
+
+<!-- GET ALL -->
+<h2>Get All Games</h2>
+<button onclick="getGames()">Fetch Games</button>
+
+<!-- SEARCH -->
+<h2>Search Game</h2>
+<input id="search" placeholder="Search keyword">
+<button onclick="searchGame()">Search</button>
+
+<!-- PRICE -->
+<h2>Price Comparison</h2>
+<input id="priceTitle" placeholder="Game title">
+<button onclick="getPrice()">Get Price</button>
+
+<!-- OUTPUT -->
+<h2>Result</h2>
+<pre id="output">No data yet...</pre>
+
+<script>
+const API = "http://localhost:3000/api";
+
+function show(data) {
+  document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+}
+
+// ADD GAME
+async function addGame() {
+  const title = document.getElementById("title").value;
+  const category = document.getElementById("category").value;
+
+  const res = await fetch(`${API}/games`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, category })
+  });
+
+  const data = await res.json();
+  show(data);
+}
+
+// GET ALL
+async function getGames() {
+  const res = await fetch(`${API}/games`);
+  const data = await res.json();
+  show(data);
+}
+
+// SEARCH
+async function searchGame() {
+  const q = document.getElementById("search").value;
+
+  const res = await fetch(`${API}/games/search?q=${q}`);
+  const data = await res.json();
+  show(data);
+}
+
+// PRICE
+async function getPrice() {
+  const title = document.getElementById("priceTitle").value;
+
+  const res = await fetch(`${API}/prices?title=${encodeURIComponent(title)}`);
+  const data = await res.json();
+  show(data);
+}
+</script>
+
+</body>
+</html>
