@@ -62,9 +62,20 @@ th {
 }
 
 tbody tr:hover {
-  background-color: #f9fafb;
+  background-color: #f0f9ff;
 }
 
 .empty {
   color: gray;
+}
+
+.savings {
+  font-weight: bold;
+  color: #10b981;
+  font-size: 16px;
+}
+
+.steam-price, .epic-price, .gog-price {
+  font-weight: 500;
+  color: #1f2937;
 }
