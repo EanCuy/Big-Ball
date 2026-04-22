@@ -1,41 +1,50 @@
 const express = require('express');
 const axios = require('axios');
 const db = require('./db');
+const cors = require('cors');
 const app = express();
 
 app.use(express.json());
+app.use(cors());
 
-// Main Function: Price Comparison across platforms 
 app.get('/api/prices', async (req, res) => {
-    const { title } = req.query;
-    if (!title) return res.status(400).json({ error: "Title is required" });
+    const { gameID } = req.query; 
+    if (!gameID) return res.status(400).json({ error: "Game ID is required" });
 
     try {
-        // 1. Search for game via Integration Layer 
-        const search = await axios.get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(title)}&limit=1`);
-        if (search.data.length === 0) return res.status(404).json({ error: "Game not found" });
-
-        const gameID = search.data[0].gameID;
-
-        // 2. Fetch live pricing [cite: 9, 18]
         const deals = await axios.get(`https://www.cheapshark.com/api/1.0/games?id=${gameID}`);
         
-        const result = {
+        const comparison = {
             title: deals.data.info.title,
-            steam: deals.data.deals.find(d => d.storeID === "1")?.price || "N/A",
-            epic: deals.data.deals.find(d => d.storeID === "25")?.price || "N/A"
+            steam: deals.data.deals.find(d => d.storeID === "1")?.price || "Not available on Steam",
+            epic: deals.data.deals.find(d => d.storeID === "25")?.price || "Not available on Epic"
         };
 
-        // 3. Track historical price changes 
-        const lowestCurrent = deals.data.deals[0].price;
-        db.run("INSERT INTO history (external_id, price, date) VALUES (?, ?, ?)", 
-               [gameID.toString(), lowestCurrent, new Date().toISOString()]);
-
-        res.json(result);
+        res.json(comparison);
     } catch (err) {
-        res.status(500).json({ error: "Integration Layer Error" });
+        res.status(500).json({ error: "Comparison retrieval failed" });
+    }
+});
+
+app.get('/api/history', async (req, res) => {
+    const { gameID } = req.query;
+    try {
+        const deals = await axios.get(`https://www.cheapshark.com/api/1.0/games?id=${gameID}`);
+        
+        const historyData = {
+            title: deals.data.info.title,
+            cheapestPriceEver: deals.data.cheapestPriceEver.price,
+            dateOfCheapest: new Date(deals.data.cheapestPriceEver.date * 1000).toLocaleDateString()
+        };
+
+        db.run("INSERT INTO history (external_id, game_title, price, date_recorded) VALUES (?, ?, ?, ?)", 
+               [gameID, historyData.title, historyData.cheapestPriceEver, new Date().toISOString()]);
+
+        res.json(historyData);
+    } catch (err) {
+        res.status(500).json({ error: "History retrieval failed" });
     }
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`Group 07 API active on port ${PORT}`));
+app.listen(PORT, () => console.log(`Group 07 - Price & History API active on port ${PORT}`));
