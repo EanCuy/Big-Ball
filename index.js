@@ -12,7 +12,6 @@ app.get("/api/prices", async (req, res) => {
   if (!title) return res.status(400).json({ error: "Title is required" });
 
   try {
-    // 1. Get ALL matches (removed &limit=1)
     const searchResponse = await axios.get(
       `https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(title)}`,
     );
@@ -21,7 +20,6 @@ app.get("/api/prices", async (req, res) => {
       return res.status(404).json({ error: "No games found" });
     }
 
-    // 2. Map through the first few results (e.g., top 5) to get details for each
     const topResults = searchResponse.data.slice(0, 5);
 
     const detailedGames = await Promise.all(
@@ -41,7 +39,7 @@ app.get("/api/prices", async (req, res) => {
       }),
     );
 
-    res.json(detailedGames); // Returns an array [ {}, {}, {} ]
+    res.json(detailedGames); 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Integration error" });
@@ -99,6 +97,91 @@ app.post("/api/games", (req, res) => {
       res.json({ id: this.lastID });
     },
   );
+});
+
+app.get('/api/games', (req, res) => {
+  db.all("SELECT * FROM games", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.get('/api/games/:id', (req, res) => {
+  db.get("SELECT * FROM games WHERE id = ?", [req.params.id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(row);
+  });
+});
+
+app.post('/api/games', (req, res) => {
+  const { title, category } = req.body;
+
+  db.run(
+    "INSERT INTO games (title, category) VALUES (?, ?)",
+    [title, category],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID });
+    }
+  );
+});
+
+app.get('/api/games/search', (req, res) => {
+  const keyword = req.query.q;
+
+  db.all(
+    "SELECT * FROM games WHERE title LIKE ? OR category LIKE ?",
+    [`%${keyword}%`, `%${keyword}%`],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
+});
+
+app.get('/api/prices', async (req, res) => {
+  const { title } = req.query;
+
+  if (!title) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+
+  try {
+    const search = await axios.get(
+      `https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(title)}&limit=1`
+    );
+
+    if (search.data.length === 0) {
+      return res.status(404).json({ error: "Game not found" });
+    }
+
+    const gameID = search.data[0].gameID;
+
+    const deals = await axios.get(
+      `https://www.cheapshark.com/api/1.0/games?id=${gameID}`
+    );
+
+    const steam = deals.data.deals.find(d => d.storeID === "1")?.price || "N/A";
+    const epic = deals.data.deals.find(d => d.storeID === "25")?.price || "N/A";
+
+    const result = {
+      title: deals.data.info.title,
+      steam,
+      epic
+    };
+
+    const lowestPrice = deals.data.deals[0]?.price || 0;
+
+    db.run(
+      "INSERT INTO history (external_id, price, date) VALUES (?, ?, ?)",
+      [gameID, lowestPrice, new Date().toISOString()]
+    );
+
+    res.json(result);
+
+  } catch (err) {
+    res.status(500).json({ error: "Integration error" });
+  }
 });
 
 const PORT = 3000;
